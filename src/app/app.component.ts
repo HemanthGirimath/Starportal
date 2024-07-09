@@ -3,13 +3,12 @@ import { RouterOutlet } from '@angular/router';
 
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { interval, Subscription } from 'rxjs';
-
+import { ChangeDetectorRef } from '@angular/core';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet,CommonModule],
+  imports: [RouterOutlet,CommonModule,],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
@@ -22,8 +21,8 @@ export class AppComponent implements OnInit,OnDestroy{
     minutes: '00',
     seconds: '00'
   };
-
-  private timerSubscription: Subscription | undefined;
+  private countDownDate: number;
+  private timerId: any;
 
   videoUrls: string[] = [
     'https://www.youtube.com/embed/dQw4w9WgXcQ.',
@@ -34,10 +33,12 @@ export class AppComponent implements OnInit,OnDestroy{
   sanitizedVideoUrls: SafeResourceUrl[] = [];
   isPlaying: boolean[] = [];
 
-  constructor(private sanitizer: DomSanitizer) {
+  constructor(private cdr: ChangeDetectorRef,private sanitizer: DomSanitizer) {
+    this.countDownDate = new Date().getTime() +   12 * 60 * 60 * 1000;
+    
   }
 
-  isPanelExpanded = true;
+  isPanelExpanded = false;
   quests = [
     { 
       title: '#1: But what is crypto and...', 
@@ -77,11 +78,15 @@ export class AppComponent implements OnInit,OnDestroy{
   ];
 
   startCountdown() {
-    const countDownDate = new Date().getTime() + 12 * 60 * 60 * 1000; // 12 hours from now
-
-    this.timerSubscription = interval(1000).subscribe(() => {
+    const updateTimer = () => {
       const now = new Date().getTime();
-      const distance = countDownDate - now;
+      const distance = this.countDownDate - now;
+
+      if (distance < 0) {
+        this.timeLeft = { days: '00', hours: '00', minutes: '00', seconds: '00' };
+        this.cdr.detectChanges();
+        return;
+      }
 
       const days = Math.floor(distance / (1000 * 60 * 60 * 24));
       const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -95,27 +100,36 @@ export class AppComponent implements OnInit,OnDestroy{
         seconds: seconds.toString().padStart(2, '0')
       };
 
-      if (distance < 0) {
-        if (this.timerSubscription) {
-          this.timerSubscription.unsubscribe();
-        }
-        this.timeLeft = { days: '00', hours: '00', minutes: '00', seconds: '00' };
-      }
-    });
-  }
+      console.log('Timer updated:', this.timeLeft);
+      this.cdr.detectChanges();
 
+      this.timerId = setTimeout(updateTimer, 1000);
+    };
+
+    updateTimer();
+  }
+  
   togglePanel() {
     this.isPanelExpanded = !this.isPanelExpanded;
+    this.startCountdown()
   }
-  ngOnInit(): void {
+  
+  toggleVideo(index: number) {
+    this.isPlaying[index] = !this.isPlaying[index];
+    this.cdr.detectChanges();
+  }
+  ngOnInit(){
     this.sanitizedVideoUrls = this.videoUrls.map(url => this.sanitizer.bypassSecurityTrustResourceUrl(url));
     this.isPlaying = new Array(this.videoUrls.length).fill(false);
+    console.log('Component initialized');
+
   }
+
 
 
   ngOnDestroy() {
-    if (this.timerSubscription) {
-      this.timerSubscription.unsubscribe();
+    if (this.timerId) {
+      clearTimeout(this.timerId);
     }
   }
 
